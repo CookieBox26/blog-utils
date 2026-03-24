@@ -12,6 +12,7 @@ authors = [
 ]
 dependencies = [
   "tinycss2==1.5.1",
+  "colorama==0.4.6",
 ]
 
 [project.optional-dependencies]
