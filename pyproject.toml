@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "blog_utils"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "CookieBox26", email = "cookie-box@cookie-box.info" },
+]
+dependencies = [
+  "tinycss2==1.5.1",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "ruff",
+]
+
+[tool.pytest.ini_options]
+python_files = [ "test.py", "test_*.py",]
+
+[tool.ruff.lint]
+select = ["F401"]
