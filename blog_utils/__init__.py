@@ -4,8 +4,6 @@ import re
 pattern_q = re.compile(r'([^{}]+)\{([^{}]+)\}')
 pattern_bad_ws = re.compile(r' {2,}')
 pattern_bad_comma = re.compile(r',(?![ \n])')
-pattern_bad_colon = re.compile(r'(?<!http)(?<!https):(?![ \n])')
-pattern_eos_semicolon = re.compile(r';\s*$')
 pattern_newline_ws = re.compile(r'\n *')
 import argparse
 import difflib
@@ -22,11 +20,9 @@ def color_diff(diff):
             color.update({'-': Fore.RED + '-', '+': Fore.GREEN + '+'})
 
 
-def print_diff(path_before, path_after):
+def print_diff(lines_0, lines_1):
     for line in color_diff(difflib.unified_diff(
-        path_before.read_text(encoding='utf8').splitlines(),
-        path_after.read_text(encoding='utf8').splitlines(),
-        fromfile='Before', tofile='After', lineterm='',
+        lines_0, lines_1, fromfile='Before', tofile='After', lineterm='',
     )):
         print(line)
 
@@ -38,19 +34,27 @@ def parse_qs(qs):
 
 def format_qs(qs):
     qs = pattern_bad_ws.sub(' ', qs)
-    qs = pattern_bad_comma.sub(', ', qs)
     pre, con = parse_qs(qs)
+    pre = pattern_bad_comma.sub(', ', pre)
     pre = pre.strip() + ' '
-    con = pattern_bad_colon.sub(': ', con).strip()
-    con = pattern_eos_semicolon.sub('', con)
-    con = [
-        '  ' + pattern_newline_ws.sub('\n    ', c.strip()) + ';'
-        for c in con.split(';') if c
-    ]
-    return pre + '{\n' + '\n'.join(con) + '\n}'
+    props = []
+    for c in con.split(';'):
+        if not c.strip():
+            continue
+        pair = c.strip().split(':', 1)
+        if len(pair) == 1:
+            print(pair)
+        prop, value = c.strip().split(':', 1)
+        prop = prop.strip()
+        value = pattern_newline_ws.sub('\n    ', value).rstrip()
+        if value[0] != ' ' and value[0] != '\n':
+            value = ' ' + value
+        c = '  ' + prop + ':' + value + ';'
+        props.append(c)
+    return pre + '{\n' + '\n'.join(props) + '\n}'
 
 
-def format(style, style_bak):
+def format(style, overwrite, style_bak):
     path = Path(style)
     path_bak = Path(style_bak)
     text_org = path.read_text('utf8')
@@ -69,13 +73,18 @@ def format(style, style_bak):
             if n_comment < 2:
                 text += rule.serialize()
             else:
-                text += format_qs(rule.serialize()) + '\n'
+                qs = rule.serialize()
+                if 'data:image' in qs:
+                    text += qs + '\n'
+                else:
+                    text += format_qs(qs) + '\n'
         else:
             raise NotImplementedError('Unsupported: ' + rule.type)
     if text != text_org:
-        path.write_text(text, newline='\n', encoding='utf8')
-        print_diff(path_bak, path)
-        logging.info('Updated the stylesheet.')
+        print_diff(text_org.splitlines(), text.splitlines())
+        if overwrite:
+            path.write_text(text, newline='\n', encoding='utf8')
+            logging.info('Updated the stylesheet.')
     else:
         logging.info('No updates to the stylesheet.')
 
@@ -131,11 +140,12 @@ def main():
     group.add_argument('-p', '--prelude')
     group.add_argument('-d', '--duplicate', action='store_true')
     parser.add_argument('--style', default='style.css')
+    parser.add_argument('-o', '--overwrite', action='store_true')
     parser.add_argument('--style_bak', default='style.bak.css')
     args = parser.parse_args()
 
     if args.format:
-        format(args.style, args.style_bak)
+        format(args.style, args.overwrite, args.style_bak)
     if args.ident:
         search_ident(args.style, args.ident)
     if args.prelude:
